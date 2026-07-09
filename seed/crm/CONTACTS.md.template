@@ -1,0 +1,52 @@
+# Contacts — {{PROJECT}}
+
+> This file is yours (project-owned). It is the **people ledger** — one entry
+> per contact, a person at an account. `/contact` creates and updates entries
+> and attaches a person to an account. Read `.claude/crm-rules.md` for the
+> record; `.claude/crm-gate.md` for this business's contact-roles taxonomy.
+
+**Ids** are `CON-NNN`, monotonic, never reused. Every contact carries an
+`account: @acct-<slug>` (the join to `crm/ACCOUNTS.md`) — a contact with no
+account is an orphan. At most one `primary: yes` per account.
+
+**Legend** — `CON-NNN` (contact id) · `account: @acct-<slug>` (join to the
+account hub) · `role` from the gate's contact-roles taxonomy ·
+`primary: yes|no`. Grouped by account.
+
+---
+
+<!-- Grouped by account. Example entries below — delete them once you file
+     your first real contact. -->
+
+## @acct-acme — Acme Corp
+
+### CON-001 — Priya Rao
+
+- **account:** @acct-acme
+- **role:** decision-maker
+- **email:** priya@acme.example
+- **phone:** +1 555 0100
+- **primary:** yes
+- **notes:** Ops lead; owns the rollout. Signed off on LEAD-001.
+
+### CON-002 — Dana Lee
+
+- **account:** @acct-acme
+- **role:** technical
+- **email:** dana@acme.example
+- **phone:** +1 555 0101
+- **primary:** no
+- **notes:** IT; handles the integration details.
+
+## @acct-globex — Globex Inc
+
+### CON-003 — Marcus Cole
+
+- **account:** @acct-globex
+- **role:** champion
+- **email:** marcus@globex.example
+- **phone:** +1 555 0200
+- **primary:** yes
+- **notes:** Internal advocate for the current opportunity (LEAD-002).
+
+<!-- Delete the example contacts above once you file your first real contact. -->

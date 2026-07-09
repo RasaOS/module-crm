@@ -1,0 +1,139 @@
+# CRM Gate
+
+**This file is yours.** `rasa.module.crm` ships the portable CRM spine
+(`.claude/crm-rules.md` + the `/account` `/contact` `/lead` `/qualify` `/crm`
+skills), but it deliberately does not decide the four things that vary per
+business:
+
+1. **Pipeline stages + the qualification bar** — your stage list, the
+   entry/exit criteria, and what makes a lead "qualified".
+2. **Lead-source taxonomy** — where your leads come from.
+3. **Customer-status taxonomy** — what "active customer" means, and what
+   counts as churn.
+4. **Contact-roles taxonomy** — the roles people play at an account.
+
+This file is where you define all four. `/qualify` reads it and **hard-stops
+if there is no qualification bar** — inventing a sales process for a business
+it's never seen is the one inference the skill refuses to make. Everything
+below ships as an honest default; replace it with your business's real
+policy. Running on the defaults is a smell, not a destination.
+
+---
+
+## Pipeline stages + qualification bar (EDIT THIS — REQUIRED for /qualify)
+
+> `/qualify` hard-stops until the qualification bar below is filled. These are
+> the ordered stages a lead moves through, the entry/exit criteria for each,
+> and the concrete bar that marks a lead `qualified`.
+
+**Stages** — the ordered pipeline for THIS business (default below):
+
+- `new` → `contacted` → `qualified` → `proposal` → `won | lost`
+
+**Entry / exit criteria** — what has to be true to enter and leave each stage:
+
+- **new** — captured; nothing worked yet.
+- **contacted** — first real outreach made; a conversation started.
+- **qualified** — clears the qualification bar (below).
+- **proposal** — a proposal / quote is out; terms under negotiation.
+- **won** — closed-won. **Flip the account `status → active`** (a won lead is
+  now a current customer); set the account's `since` to the win date.
+- **lost** — closed-lost. Record why in the lead's `notes`; never delete it.
+
+**Qualification bar** — a lead is `qualified` when ALL of these are true
+(default — replace with your real bar):
+
+- [ ] A real **need** is named (the problem we solve for them).
+- [ ] **Budget** is confirmed to exist (not necessarily the number).
+- [ ] The **decision-maker** is identified.
+
+<!-- Tune the stages + bar to your business. Real examples:
+- Collapse contacted/qualified into one "working" stage.
+- Add a `nurture` holding stage for not-yet-ready leads.
+- Add a `demo` stage between qualified and proposal.
+- Qualification bar for a self-serve SaaS: "activated in trial + fits ICP".
+- Qualification bar for services: "scoped + budget range agreed + sponsor named".
+-->
+
+---
+
+## Lead-source taxonomy (EDIT THIS)
+
+> The allowed `source` values for a lead — where it came from. `/lead` offers
+> these. Default is a small generic set; replace it.
+
+- `referral | inbound | event | outbound`  (default)
+
+<!-- Real examples — pick/rename to match your business:
+- referral    — a customer or partner sent them
+- inbound     — they came to us (website, content, search)
+- outbound    — we reached out cold
+- event       — met at a conference / trade show / webinar
+- partner     — came through a channel/partner
+- expansion   — an existing customer, new opportunity
+-->
+
+---
+
+## Customer-status taxonomy (EDIT THIS)
+
+> What `prospect / active / churned` mean for your business — specifically
+> what makes an account a **current (active) customer**, and what counts as
+> **churn**. This is the definition the current-customers list depends on.
+
+- `prospect` — an account we're selling to; no won deal yet. (default)
+- `active` — **a current customer** — has at least one won deal and an
+  ongoing relationship. (default)
+- `churned` — was active, no longer is. (default)
+
+**What makes an account `active` (a current customer):** at least one lead
+reached `won` and the relationship is live. (default)
+
+**What counts as churn (`active → churned`):** the customer has ended the
+relationship / stopped buying. (default — set your real definition: contract
+not renewed? no activity in N months? explicit cancellation?)
+
+<!-- Real examples:
+- active = paying / under contract this period; churned = contract lapsed.
+- active = logged in / ordered in the last 90 days.
+- Add a `paused` or `at-risk` status between active and churned.
+- tier scale: `strategic | mid-market | smb` (used on the account's `tier`).
+-->
+
+---
+
+## Contact-roles taxonomy (EDIT THIS)
+
+> The roles people play at an account — the allowed `role` values for a
+> contact. `/contact` offers these. Default is a small generic set.
+
+- `decision-maker | champion | technical | billing | user`  (default)
+
+<!-- Real examples — pick/rename to match how you sell:
+- decision-maker — signs / approves the deal
+- champion       — internal advocate pushing it forward
+- technical      — evaluates / integrates the product
+- billing        — owns procurement / invoices
+- user           — day-to-day end user
+- exec-sponsor   — the senior sponsor
+-->
+
+---
+
+## Note on co-mounted modules
+
+- **crm owns the accounts registry.** If a split business-ops module
+  (`rasa.module.field-log`, `rasa.module.invoices`, `rasa.module.contracts`)
+  is co-mounted, it joins to **crm's `crm/ACCOUNTS.md`** by `@acct-<slug>` —
+  crm is the accounts source of truth for this deployment. Do **not** seed a
+  second competing accounts registry.
+- If `rasa.module.field-log` is mounted, a **won** lead can trigger a kickoff
+  visit against the same `@acct-<slug>`; the visit resolves its account
+  against crm's `ACCOUNTS.md`.
+- If `rasa.module.contracts` is mounted, point your `won` hand-off at how a
+  won lead becomes a contract — one source of truth for "how a win becomes an
+  agreement."
+- If `rasa.module.invoices` is mounted, an **active** customer is the billable
+  one; crm answers "who is a current customer," invoices owns the money.
+- A lead's `next_action` can become a `rasa.module.tasks` `TASK-NNN` when that
+  module is mounted; the `next_action` field here stays the lightweight view.

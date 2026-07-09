@@ -1,0 +1,57 @@
+# Accounts — {{PROJECT}}
+
+> This file is yours (project-owned). It is the **customer/account hub** — one
+> entry per account, and the **current-customers registry** (the accounts with
+> `status: active`). `/account` creates and updates entries and flips status.
+> Read `.claude/crm-rules.md` for the records + the won → active link;
+> `.claude/crm-gate.md` for this business's customer-status and churn
+> definitions.
+
+> **crm owns this registry.** If a split business-ops module
+> (`rasa.module.field-log`, `invoices`, `contracts`) is co-mounted, it joins
+> to THIS file by `@acct-<slug>`. Do not seed a second accounts registry.
+
+**Status:** `prospect → active → churned`. **`active` = a current customer.**
+A lead reaching `won` flips its account to `active` (set `since` to the win
+date). Never delete a churned account — flip its status; the history is data.
+
+**Legend** — `@acct-<slug>` (the handle + shared join spine) ·
+`status: prospect | active | churned` · `contacts:` a list of `CON-NNN`
+(join to `crm/CONTACTS.md`). Grouped by status, **active (current customers)
+first**.
+
+---
+
+<!-- Grouped by status; active customers first. Example entries below — delete
+     them once you file your first real account. -->
+
+## Active — current customers
+
+### @acct-acme — Acme Corp
+
+- **status:** active
+- **tier:** mid-market
+- **owner:** Jordan
+- **since:** {{TODAY}}  <!-- flipped active when LEAD-001 was won -->
+- **contacts:** CON-001 (primary), CON-002
+- **notes:** Became a customer off the rollout deal (LEAD-001, won). Kickoff
+  scheduled; billing set up.
+
+## Prospect — in the pipeline
+
+### @acct-globex — Globex Inc
+
+- **status:** prospect
+- **tier:** strategic
+- **owner:** Sam
+- **since:** {{TODAY}}
+- **contacts:** CON-003 (primary)
+- **notes:** Active opportunity in the pipeline (LEAD-002, qualified). One
+  earlier opportunity died (LEAD-003, lost) — see the note there.
+
+## Churned — former customers
+
+<!-- (none yet — when a customer churns, flip status: churned and move here;
+     never delete the entry) -->
+
+<!-- Delete the example accounts above once you file your first real account. -->

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://rasa-os.github.io/schema/rasa.schema.v1.json",
+  "contract_version": "1.3.0",
+  "name": "rasa.module.crm",
+  "version": "0.1.0",
+  "kind": "module",
+  "aliases": [
+    "module-crm"
+  ],
+  "description": "Portable combined CRM: contacts, leads AND current customers in one module — three records (Account, Contact, Lead) joined by the shared account handle @acct-<slug>. Deliberately owns the account registry (the current-customers hub) locally rather than deferring it.",
+  "source": {
+    "repo": "https://github.com/RasaOS/module-crm",
+    "branch": "main"
+  },
+  "tier": "Pro",
+  "capabilities": [
+    "crm.contacts",
+    "crm.leads-pipeline",
+    "crm.customer-accounts",
+    "crm.account-linkage"
+  ],
+  "permissions": [
+    "fs:read",
+    "fs:write"
+  ],
+  "requires": {
+    "parent_kind": [
+      "domain",
+      "tenant"
+    ]
+  },
+  "rasa": {
+    "role": "L1-mountable-capability",
+    "shape_pattern": "toolkit",
+    "note": "The combined CRM module of the RasaOS business-ops set — contacts, leads AND current customers in ONE module, all joined by the shared account handle @acct-<slug>. It owns three records: the Account (the customer/company hub — 'current customers' are the accounts with status=active), the Contact (a person at an account, CON-NNN), and the Lead (a sales opportunity, LEAD-NNN, moving new -> contacted -> qualified -> proposal -> won | lost). KEY LIFECYCLE LINK: when a Lead reaches won, its Account flips status -> active (a won lead becomes a current customer); lost is terminal and never deleted (a lost lead is memory). DELIBERATE DIVERGENCE: the split RasaOS business-ops modules (leads / schedule / contracts / invoices / field-log) each defer the account's own record to the unbuilt engagement-hub primitive (canon SA-032); by the owner's explicit choice rasa.module.crm does NOT defer — it OWNS the account registry itself, materializing the account hub locally in crm/ACCOUNTS.md. If the split modules are co-mounted, THEY join to crm's ACCOUNTS.md by @acct-<slug> — crm is the accounts source of truth for the deployment. The things that vary per business — the pipeline stages + entry/exit criteria + the qualification bar (what makes a lead 'qualified'), the lead-source taxonomy, the customer-status taxonomy (what 'active customer' means + the churn definition), and the contact-roles taxonomy — live in a project-owned .claude/crm-gate.md seam (seeded skip-if-exists), the crm analogue of module.tasks' done-gate; /qualify hard-stops if the qualification bar is unfilled. Cross-module references are SOFT (present-if-mounted, graceful-if-absent, never requires.elements[]): a field visit (rasa.module.field-log) joins to a crm Account by @acct-<slug> and a won lead can trigger a kickoff visit; a won lead hands off to a contract (rasa.module.contracts); an active customer is billed (rasa.module.invoices); a lead's next_action can become a TASK-NNN (rasa.module.tasks). HONEST SCOPE: v0.1.0 ships the spine (crm-rules.md), the specification (content/BUILD_PLAN.md), the seam template, and the three live-ledger templates (ACCOUNTS / CONTACTS / LEADS). The /account, /contact, /lead, /qualify, and /crm skills are the authoring build phase, gated per BUILD_PLAN.md M-1..M-5 and held until a real consumer declares the module in requires.elements[] (the module.tasks extract-after-proof precedent).",
+    "identity": {
+      "one_liner": "the RasaOS module for CRM",
+      "role": "module",
+      "subject": "contacts, leads & customers",
+      "goal": "bring contacts, leads and current customers into a project as an installable RasaOS module"
+    }
+  },
+  "element": {
+    "description": "Element-owned files mirrored into the install target's .claude/ per canon ELEMENT_CONTRACT.md §7. Refreshed on Element upgrade. The crm-gate seam and the three live ledgers (ACCOUNTS / CONTACTS / LEADS) are NOT here — they are project-owned (see seed.files).",
+    "files": [
+      {
+        "from": "content/crm-rules.md",
+        "to": ".claude/crm-rules.md",
+        "policy": "file-replace",
+        "note": "The portable CRM spine: the three records it owns (Account / Contact / Lead) + their canonical field sets, the shared @acct-<slug> account spine (which crm OWNS locally rather than deferring to SA-032), the pipeline lifecycle (new -> contacted -> qualified -> proposal -> won | lost) and the won -> account-active link, the boundary against the split business-ops modules, and the ledger conventions. Element-owned; refreshed on upgrade. References .claude/crm-gate.md for the per-business slice (pipeline stages + qualification bar, lead-source taxonomy, customer-status + churn taxonomy, contact-roles taxonomy); it hardcodes none of it."
+      },
+      {
+        "from": "content/README.md",
+        "to": "content/README.md",
+        "policy": "opt-in",
+        "note": "Describes what this module ships and how it installs. Fork/author-time doc; not installed into consumer projects."
+      },
+      {
+        "from": "content/BUILD_PLAN.md",
+        "to": "content/BUILD_PLAN.md",
+        "policy": "opt-in",
+        "note": "The v0.1.0 specification + build plan (the Account/Contact/Lead entity model, the pipeline lifecycle + the won -> account-active link, the deliberate divergence that crm OWNS the account registry instead of deferring to SA-032, the crm-gate seam, the deferred /account /contact /lead /qualify /crm skills gated per extract-after-proof, the soft cross-refs, and the honest scope). Author-time doc; not installed into consumer projects."
+      },
+      {
+        "from": "content/skills/",
+        "to": ".claude/skills/",
+        "policy": "opt-in",
+        "note": "Skill scaffold (opt-in). The generic /sync + /promote below install (directory-mirror); other skills stay opt-in."
+      },
+      {
+        "from": "content/skills/sync/",
+        "to": ".claude/skills/sync/",
+        "policy": "directory-mirror",
+        "note": "Generic /sync — smart-pull upstream Element changes via the kit/<element>/ clone (canon SA-024)."
+      },
+      {
+        "from": "content/skills/promote/",
+        "to": ".claude/skills/promote/",
+        "policy": "directory-mirror",
+        "note": "Generic /promote — smart-push local changes back upstream via the kit/<element>/ clone (canon SA-024)."
+      }
+    ]
+  },
+  "seed": {
+    "description": "One-time, project-owned files copied at install only (skip-if-exists), per canon ELEMENT_CONTRACT.md §7. These belong to the consuming project after install and are never overwritten on Element upgrade — the project's crm-gate adapter seam and its three live ledgers (the account/customer hub, the contacts, and the pipeline board).",
+    "files": [
+      {
+        "from": "seed/crm-gate.md.template",
+        "to": ".claude/crm-gate.md",
+        "policy": "skip-if-exists",
+        "note": "The per-business adapter seam — the four things that vary per CRM: the pipeline stages + entry/exit criteria + the qualification bar (what makes a lead 'qualified'), the lead-source taxonomy, the customer-status taxonomy (what 'active customer' means + the churn definition), and the contact-roles taxonomy. Project-owned; the business fills it. /qualify hard-stops until the qualification bar is set. Ships with honest defaults + commented examples; placeholder-free per the documented skip-if-exists policy gap."
+      },
+      {
+        "from": "seed/crm/ACCOUNTS.md.template",
+        "to": "crm/ACCOUNTS.md",
+        "policy": "skip-if-exists",
+        "note": "The customer/account hub ledger — one entry per account (handle @acct-<slug> / name / status prospect|active|churned / tier / owner / since / contacts / notes), grouped by status with active customers first. THE current-customers registry: this is the account record the split business-ops modules defer to SA-032 — crm owns it locally and is the accounts source of truth for the deployment. Project-owned; grows over the business's life. /account adds + updates + flips status; a won lead flips its account to active."
+      },
+      {
+        "from": "seed/crm/CONTACTS.md.template",
+        "to": "crm/CONTACTS.md",
+        "policy": "skip-if-exists",
+        "note": "The people ledger — one entry per contact (CON-NNN / account @acct-<slug> / name / role-title / email / phone / primary? / notes), grouped by account. Project-owned; grows over the business's life. /contact adds + updates + attaches a person to an account. CON-NNN ids are monotonic; @acct-<slug> joins each contact to its account in ACCOUNTS.md."
+      },
+      {
+        "from": "seed/crm/LEADS.md.template",
+        "to": "crm/LEADS.md",
+        "policy": "skip-if-exists",
+        "note": "The pipeline board ledger — one entry per lead (LEAD-NNN / account @acct-<slug> / contact / source / stage / value / owner / next_action + next_action_date / created / notes), grouped by stage; won and lost stay in the ledger (a lost lead is memory). Project-owned; grows over the business's life. /lead captures + advances, /qualify advances through the qualification bar. A won lead flips its account -> active in ACCOUNTS.md."
+      },
+      {
+        "from": "seed/rasa.lock.json.template",
+        "to": ".claude/rasa.lock.json",
+        "policy": "init-only-with-sha",
+        "note": "Stamped with the Element HEAD commit SHA at init time. Lockfile shape per canon Spec §6 (Connection Contract). When co-installed under a parent that also stamps a lockfile, the parent's is authoritative (single-writer-per-path). Substitutes {{ELEMENT_NAME}}, {{ELEMENT_KIND}}, {{ELEMENT_VERSION}}, {{ELEMENT_REPO}}, {{ELEMENT_BRANCH}}, {{ELEMENT_SHA}}, {{TODAY}} via bin/init."
+      },
+      {
+        "from": "seed/rasa-deployment.md.template",
+        "to": ".claude/rasa-deployment.md",
+        "policy": "skip-if-exists",
+        "note": "The DEPLOYMENT identity layer (SA-025) — project-owned; what this project is, for whom, on what platform. bin/init generates the element layer (.claude/rasa-identity.md) from rasa.identity every install."
+      }
+    ]
+  },
+  "scaffold": {
+    "description": "Empty directories created at init by the declarative installer.",
+    "directories": []
+  }
+}
