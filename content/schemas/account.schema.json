@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RasaOS/module-crm/blob/main/content/schemas/account.schema.json",
+  "title": "Account — rasa.module.crm (records-family/1)",
+  "description": "A customer or company: the hub. One file, crm/accounts/acct-<slug>.md, whose stem IS the id; the display name is the H1. 'Current customers' are the accounts in the active status. An account's contacts are derived from the cards that name it; its leads from the leads that name it. Accounts are never archived: `status` carries churn.",
+  "type": "object",
+  "x-id-prefix": "acct",
+  "x-title": "required",
+  "x-key-order": [
+    "id",
+    "created",
+    "created_by",
+    "updated",
+    "status",
+    "since",
+    "tier",
+    "owner",
+    "website",
+    "email",
+    "phone",
+    "address",
+    "tags"
+  ],
+  "required": [
+    "id",
+    "created",
+    "created_by",
+    "updated",
+    "status"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-[a-z0-9][a-z0-9_-]*$": {}
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^acct-[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "acct-<slug>: the one slug-keyed record in the family, and the business-ops @acct-<slug> join key. The file is exactly crm/accounts/<id>.md (C-02). Never renamed, never reused."
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "created_by": {
+      "type": "string",
+      "format": "actor"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "Bumped by every tool edit; `crm touch` after a hand edit."
+    },
+    "status": {
+      "type": "string",
+      "format": "slug",
+      "description": "Where the account stands: one of config `account_statuses` (default prospect, active, churned) (C-11). Changed only by `crm account status` or `crm lead win`."
+    },
+    "since": {
+      "type": "string",
+      "format": "date",
+      "description": "The day the account entered its current status; never in the future (C-16)."
+    },
+    "tier": {
+      "type": "string",
+      "format": "slug",
+      "description": "The account's segment. Declare to constrain: config `tiers`."
+    },
+    "owner": {
+      "type": "string",
+      "format": "actor",
+      "description": "Who is accountable for the relationship."
+    },
+    "website": {
+      "type": "string",
+      "format": "uri"
+    },
+    "email": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "x-key-order": [
+          "label",
+          "value",
+          "pref"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "value": {
+            "type": "string",
+            "format": "email"
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "The account's own addresses (billing@, info@). At most one pref (C-07)."
+    },
+    "phone": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "x-key-order": [
+          "label",
+          "value",
+          "pref"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "value": {
+            "type": "string",
+            "format": "phone"
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "The account's own numbers. At most one pref (C-07)."
+    },
+    "address": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-key-order": [
+          "label",
+          "street",
+          "locality",
+          "region",
+          "code",
+          "country",
+          "pref"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "street"
+            ]
+          },
+          {
+            "required": [
+              "locality"
+            ]
+          },
+          {
+            "required": [
+              "region"
+            ]
+          },
+          {
+            "required": [
+              "code"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "x-anyOf-message": "an address needs at least one of street, locality, region, code, country",
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "street": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locality": {
+            "type": "string",
+            "minLength": 1
+          },
+          "region": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "country": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "The account's sites. At most one pref (C-07)."
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "Declare to constrain: config `tags`."
+    }
+  }
+}

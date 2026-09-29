@@ -1,0 +1,98 @@
+# crm/crm.config.yml — what this project declares to rasa.module.crm.
+#
+# PARSING. Read by the same strict parser as every card, account and lead
+# (records-family/1):
+#   * comments are WHOLE lines. A '#' after a value is an error, not a comment.
+#   * a value is text, a flow list [a, b], or omitted. To say nothing, omit the key.
+#
+# Every key except `schema` is optional, and a project with no config file at
+# all is valid — with ONE exception: `crm lead advance` into the qualified
+# stage refuses until `qualification` is declared (see .claude/crm-gate.md for
+# why, and for what each criterion means here).
+#
+# DECLARE TO CONSTRAIN. Every vocabulary list below works the same way: leave
+# it empty and anything well-formed is accepted; fill it and it becomes a
+# closed vocabulary the validator holds every record to. Two lists are the
+# exception, because the tool cannot work without them: `stages` and
+# `account_statuses` have defaults, and are always closed.
+
+schema: rasa.module.crm/1
+
+
+# ── the sales funnel ───────────────────────────────────────────────────────
+
+# stages — the ordered stages a lead moves through; each is a directory under
+# crm/leads/. New leads are filed in the first one. Must include won_stage,
+# lost_stage and qualified_stage. Default:
+#   stages: [new, contacted, qualified, proposal, won, lost]
+# Examples:
+#   a services firm:  stages: [new, contacted, qualified, scoped, proposal, won, lost]
+#   a clinic intake:  stages: [enquiry, consult-booked, qualified, treatment-plan, won, lost]
+
+# won_stage / lost_stage — the two terminal stages. Defaults: won, lost.
+# won_stage: won
+# lost_stage: lost
+
+# qualified_stage — entering this stage (or any later open stage) requires the
+# qualification criteria below. Default: qualified.
+# qualified_stage: qualified
+
+# qualification — THE HARD-STOP. The criteria a lead must meet to be
+# qualified, each asserted with `crm lead advance LEAD --to qualified --met a,b,c`.
+# Until this is declared, no lead can be qualified: guessing what "qualified"
+# means for a business is the one inference this module refuses to make.
+#   qualification: [need, budget, decision-maker]
+#   qualification: [scoped, budget-range-agreed, sponsor-named]
+# qualification: []
+
+# sources — where leads come from.
+#   sources: [referral, inbound, outbound, event, partner, expansion]
+sources: []
+
+# default_currency — what `crm lead new --value` uses without --currency.
+# default_currency: USD
+
+
+# ── accounts ───────────────────────────────────────────────────────────────
+
+# account_statuses — the statuses an account moves through; a new account
+# starts in the first. Default:
+#   account_statuses: [prospect, active, churned]
+# Example with a pause:
+#   account_statuses: [prospect, active, paused, churned]
+
+# active_status — the status that means "a current customer". `crm lead win`
+# moves a lead's account there. Default: active.
+# active_status: active
+
+# tiers — account segments.
+#   tiers: [strategic, mid-market, small]
+tiers: []
+
+# tags — account tags.
+tags: []
+
+
+# ── the address book ───────────────────────────────────────────────────────
+
+# contact_roles — the role a person plays at an account (a card's accounts).
+#   contact_roles: [decision-maker, champion, technical, billing, user]
+contact_roles: []
+
+# groups — address-book groups (vCard CATEGORIES).
+#   groups: [family, friends, clients, suppliers, press]
+groups: []
+
+# labels — the labels an email, phone, address or URL may carry.
+#   labels: [work, home, mobile, other, fax, main]
+labels: []
+
+
+# ── who ────────────────────────────────────────────────────────────────────
+
+# actors — who may appear in created_by and the history. Empty: any handle.
+#   actors: [chazz, claude]
+actors: []
+
+# default_actor — used when neither --by nor $RASA_ACTOR is given.
+# default_actor: chazz

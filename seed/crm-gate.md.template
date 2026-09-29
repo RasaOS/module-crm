@@ -1,139 +1,118 @@
-# CRM Gate
+# CRM gate — this project's seam for rasa.module.crm
 
-**This file is yours.** `rasa.module.crm` ships the portable CRM spine
-(`.claude/crm-rules.md` + the `/account` `/contact` `/lead` `/qualify` `/crm`
-skills), but it deliberately does not decide the four things that vary per
-business:
+This file is **project-owned**. `rasa.module.crm` copied it once at install
+(`skip-if-exists`) and will never overwrite it. It holds the judgement the
+module cannot make for a business it has never seen:
 
-1. **Pipeline stages + the qualification bar** — your stage list, the
-   entry/exit criteria, and what makes a lead "qualified".
-2. **Lead-source taxonomy** — where your leads come from.
-3. **Customer-status taxonomy** — what "active customer" means, and what
-   counts as churn.
-4. **Contact-roles taxonomy** — the roles people play at an account.
+1. **What "qualified" means** — in words, criterion by criterion.
+2. **What each stage means** — what has to be true to enter it and to leave it.
+3. **What "active customer" and "churn" mean** for your accounts.
+4. **What you may record about a person** — the privacy rails for the
+   address book.
 
-This file is where you define all four. `/qualify` reads it and **hard-stops
-if there is no qualification bar** — inventing a sales process for a business
-it's never seen is the one inference the skill refuses to make. Everything
-below ships as an honest default; replace it with your business's real
-policy. Running on the defaults is a smell, not a destination.
+The machine half of the seam lives in `crm/crm.config.yml`, because the
+tools check it: the stage list, the qualification criteria by name, the
+lead sources, the account statuses, the contact roles, the groups and the
+labels. **`crm lead advance` into the qualified stage hard-stops until
+`qualification` is declared there** — and each criterion must be asserted
+with `--met` when a lead is qualified. Guessing what "qualified" means for
+your business is the one inference this module refuses to make.
 
----
+Keep the two halves in step: every criterion named in the config gets a
+paragraph here, and every stage in the config gets its entry and exit.
 
-## Pipeline stages + qualification bar (EDIT THIS — REQUIRED for /qualify)
-
-> `/qualify` hard-stops until the qualification bar below is filled. These are
-> the ordered stages a lead moves through, the entry/exit criteria for each,
-> and the concrete bar that marks a lead `qualified`.
-
-**Stages** — the ordered pipeline for THIS business (default below):
-
-- `new` → `contacted` → `qualified` → `proposal` → `won | lost`
-
-**Entry / exit criteria** — what has to be true to enter and leave each stage:
-
-- **new** — captured; nothing worked yet.
-- **contacted** — first real outreach made; a conversation started.
-- **qualified** — clears the qualification bar (below).
-- **proposal** — a proposal / quote is out; terms under negotiation.
-- **won** — closed-won. **Flip the account `status → active`** (a won lead is
-  now a current customer); set the account's `since` to the win date.
-- **lost** — closed-lost. Record why in the lead's `notes`; never delete it.
-
-**Qualification bar** — a lead is `qualified` when ALL of these are true
-(default — replace with your real bar):
-
-- [ ] A real **need** is named (the problem we solve for them).
-- [ ] **Budget** is confirmed to exist (not necessarily the number).
-- [ ] The **decision-maker** is identified.
-
-<!-- Tune the stages + bar to your business. Real examples:
-- Collapse contacted/qualified into one "working" stage.
-- Add a `nurture` holding stage for not-yet-ready leads.
-- Add a `demo` stage between qualified and proposal.
-- Qualification bar for a self-serve SaaS: "activated in trial + fits ICP".
-- Qualification bar for services: "scoped + budget range agreed + sponsor named".
--->
+Honest defaults are shown below. Replace them — running on the defaults is
+a starting point, not a destination.
 
 ---
 
-## Lead-source taxonomy (EDIT THIS)
+## 1. Qualification — what the criteria mean
 
-> The allowed `source` values for a lead — where it came from. `/lead` offers
-> these. Default is a small generic set; replace it.
+The config names the criteria; this section says what each one means, and
+what counts as evidence. When a lead is qualified, the person running
+`crm lead advance … --met` is saying every one of these is true.
 
-- `referral | inbound | event | outbound`  (default)
+Default (matches `qualification: [need, budget, decision-maker]`):
 
-<!-- Real examples — pick/rename to match your business:
-- referral    — a customer or partner sent them
-- inbound     — they came to us (website, content, search)
-- outbound    — we reached out cold
-- event       — met at a conference / trade show / webinar
-- partner     — came through a channel/partner
-- expansion   — an existing customer, new opportunity
--->
+- **need** — the customer has named, in their own words, a problem we
+  solve. Our guess at their problem does not count.
+- **budget** — money for this exists in their plan or can be found; the
+  number itself can come later.
+- **decision-maker** — we know who signs, and have spoken with them or with
+  someone who speaks for them.
 
----
+> _Replace with your own. A self-serve business might use
+> `[activated-trial, fits-profile]`; a services firm
+> `[scoped, budget-range-agreed, sponsor-named]`._
 
-## Customer-status taxonomy (EDIT THIS)
+## 2. Stages — entry and exit
 
-> What `prospect / active / churned` mean for your business — specifically
-> what makes an account a **current (active) customer**, and what counts as
-> **churn**. This is the definition the current-customers list depends on.
+One line per stage in `stages` (default below). Entry is what must be true
+to move a lead in; exit is what moves it on.
 
-- `prospect` — an account we're selling to; no won deal yet. (default)
-- `active` — **a current customer** — has at least one won deal and an
-  ongoing relationship. (default)
-- `churned` — was active, no longer is. (default)
+- **new** — entry: captured, with the account it is against. Exit: first
+  real contact made.
+- **contacted** — entry: a conversation has started. Exit: the
+  qualification criteria are met (→ qualified), or it goes cold (→ lost).
+- **qualified** — entry: every criterion in §1 is true (the tool enforces
+  that each is asserted). Exit: a proposal or quote is sent.
+- **proposal** — entry: a proposal or quote is out. Exit: they say yes
+  (→ won) or no (→ lost).
+- **won** — `crm lead win`: the deal is agreed. The account becomes a
+  current customer in the same act.
+- **lost** — `crm lead lose --reason`: it did not happen. The reason is
+  the most useful thing a lost lead keeps; write it for the person who
+  reads it in a year.
 
-**What makes an account `active` (a current customer):** at least one lead
-reached `won` and the relationship is live. (default)
+> _Add, rename or remove stages in the config, then describe them here._
 
-**What counts as churn (`active → churned`):** the customer has ended the
-relationship / stopped buying. (default — set your real definition: contract
-not renewed? no activity in N months? explicit cancellation?)
+## 3. Accounts — active and churned
 
-<!-- Real examples:
-- active = paying / under contract this period; churned = contract lapsed.
-- active = logged in / ordered in the last 90 days.
-- Add a `paused` or `at-risk` status between active and churned.
-- tier scale: `strategic | mid-market | smb` (used on the account's `tier`).
--->
+What your account statuses mean. The tool moves an account to the active
+status when one of its leads is won; every other change is a person's
+decision, made with `crm account status`.
 
----
+- **prospect** — we are selling to them; nothing won yet.
+- **active** — a current customer: at least one deal won and the
+  relationship is live.
+- **churned** — was a customer, is not any more.
 
-## Contact-roles taxonomy (EDIT THIS)
+**When is an account churned?** Default: when the customer ends the
+relationship or stops buying. Say what that means here — a contract not
+renewed? no order in N months? an explicit cancellation? — so two people
+make the same call.
 
-> The roles people play at an account — the allowed `role` values for a
-> contact. `/contact` offers these. Default is a small generic set.
+> _If you declared other statuses (paused, at-risk), define them here._
 
-- `decision-maker | champion | technical | billing | user`  (default)
+## 4. The address book — what may be recorded about a person
 
-<!-- Real examples — pick/rename to match how you sell:
-- decision-maker — signs / approves the deal
-- champion       — internal advocate pushing it forward
-- technical      — evaluates / integrates the product
-- billing        — owns procurement / invoices
-- user           — day-to-day end user
-- exec-sponsor   — the senior sponsor
--->
+A contact card is **personal data about someone else**. These rails decide
+what goes on it; the tools cannot tell a fact that is fine to keep from one
+that is not.
 
----
+Default rails (tighten them for your setting — a clinic, a school or a law
+firm will have stricter rules of its own):
 
-## Note on co-mounted modules
+- Record what the relationship needs: how to reach the person, their role
+  and organization, and the notes a colleague would need to pick up the
+  conversation.
+- Do not record sensitive details — health, religion, politics, finances,
+  family circumstances — unless the relationship genuinely requires them
+  and the person would expect it.
+- Birthdays and relationships (spouse, assistant) only when the person
+  shared them or they are public.
+- Imported address books bring in everything the source had. Review an
+  import; remove what does not meet these rails.
+- When a person asks to be forgotten, or a legal duty requires it, erasing
+  their card is a deliberate act outside the tools (see the family rules,
+  "Archive, never delete") — note in your own records that it was done.
 
-- **crm owns the accounts registry.** If a split business-ops module
-  (`rasa.module.field-log`, `rasa.module.invoices`, `rasa.module.contracts`)
-  is co-mounted, it joins to **crm's `crm/ACCOUNTS.md`** by `@acct-<slug>` —
-  crm is the accounts source of truth for this deployment. Do **not** seed a
-  second competing accounts registry.
-- If `rasa.module.field-log` is mounted, a **won** lead can trigger a kickoff
-  visit against the same `@acct-<slug>`; the visit resolves its account
-  against crm's `ACCOUNTS.md`.
-- If `rasa.module.contracts` is mounted, point your `won` hand-off at how a
-  won lead becomes a contract — one source of truth for "how a win becomes an
-  agreement."
-- If `rasa.module.invoices` is mounted, an **active** customer is the billable
-  one; crm answers "who is a current customer," invoices owns the money.
-- A lead's `next_action` can become a `rasa.module.tasks` `TASK-NNN` when that
-  module is mounted; the `next_action` field here stays the lightweight view.
+> _Name any regulation or policy that applies here, and who decides._
+
+## 5. Roles and sources — optional notes
+
+If you declared `contact_roles` or `sources` in the config, a line each on
+what they mean helps everyone file consistently:
+
+> _decision-maker — signs or approves the deal. champion — pushes it
+> forward inside the account. referral — a customer or partner sent them._

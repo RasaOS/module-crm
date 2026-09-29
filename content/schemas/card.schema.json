@@ -1,0 +1,476 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RasaOS/module-crm/blob/main/content/schemas/card.schema.json",
+  "title": "Contact card — rasa.module.crm (records-family/1)",
+  "description": "One person or organization in the address book, aligned with vCard 4.0 (RFC 6350): one file under crm/contacts/ (archived under crm/contacts/_archive/), the display name (vCard FN) as its H1, and any free notes as the body. A card needs no account. Field law for the frontmatter; cross-record law (primaries, duplicates, merges, history) is in .claude/crm-rules.md.",
+  "type": "object",
+  "x-id-prefix": "CARD",
+  "x-title": "required",
+  "x-key-order": [
+    "id",
+    "created",
+    "created_by",
+    "updated",
+    "kind",
+    "name",
+    "nickname",
+    "org",
+    "title",
+    "email",
+    "phone",
+    "address",
+    "url",
+    "handle",
+    "birthday",
+    "anniversary",
+    "groups",
+    "accounts",
+    "related",
+    "tz",
+    "lang",
+    "photo",
+    "uid",
+    "merged_into"
+  ],
+  "x-refs": {
+    "accounts": {
+      "field": "acct",
+      "prefixes": [
+        "acct"
+      ]
+    },
+    "related": {
+      "field": "who",
+      "prefixes": [
+        "CARD"
+      ]
+    },
+    "merged_into": [
+      "CARD"
+    ]
+  },
+  "required": [
+    "id",
+    "created",
+    "created_by",
+    "updated"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-[a-z0-9][a-z0-9_-]*$": {}
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^CARD-[0-9]{4,}$",
+      "description": "Minted by `crm contact new` or `crm import`; never reused. CARD, not CON: rasa.module.contracts mints CON-nnn."
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "created_by": {
+      "type": "string",
+      "format": "actor"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "Bumped by every tool edit; `crm touch` after a hand edit."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "individual",
+        "org"
+      ],
+      "description": "vCard KIND. Absent = individual; the tools write only `org`."
+    },
+    "name": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-key-order": [
+        "prefix",
+        "given",
+        "additional",
+        "family",
+        "suffix"
+      ],
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "given": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additional": {
+          "type": "string",
+          "minLength": 1
+        },
+        "family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suffix": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "vCard N, the structured name. The display name (vCard FN) is the H1."
+    },
+    "nickname": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "vCard NICKNAME."
+    },
+    "org": {
+      "type": "string",
+      "minLength": 1,
+      "description": "vCard ORG: the organization the person belongs to, as text. The customer relationship is `accounts`."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "vCard TITLE: the job title."
+    },
+    "email": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "x-key-order": [
+          "label",
+          "value",
+          "pref"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "value": {
+            "type": "string",
+            "format": "email"
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "vCard EMAIL: [{label, value, pref}]. At most one pref (C-07)."
+    },
+    "phone": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "x-key-order": [
+          "label",
+          "value",
+          "pref"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "value": {
+            "type": "string",
+            "format": "phone"
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "vCard TEL: [{label, value, pref}]. At most one pref (C-07)."
+    },
+    "address": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-key-order": [
+          "label",
+          "street",
+          "locality",
+          "region",
+          "code",
+          "country",
+          "pref"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "street"
+            ]
+          },
+          {
+            "required": [
+              "locality"
+            ]
+          },
+          {
+            "required": [
+              "region"
+            ]
+          },
+          {
+            "required": [
+              "code"
+            ]
+          },
+          {
+            "required": [
+              "country"
+            ]
+          }
+        ],
+        "x-anyOf-message": "an address needs at least one of street, locality, region, code, country",
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "street": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locality": {
+            "type": "string",
+            "minLength": 1
+          },
+          "region": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "country": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pref": {
+            "type": "boolean",
+            "const": "true",
+            "description": "Only ever `true`, on at most one item of the list (C-07); an item that is not preferred omits the key."
+          }
+        }
+      },
+      "description": "vCard ADR: [{label, street, locality, region, code, country, pref}]. At most one pref (C-07)."
+    },
+    "url": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "x-key-order": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "format": "slug",
+            "description": "work, home, mobile, … Declare to constrain: config `labels`."
+          },
+          "value": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "description": "vCard URL: [{label, value}]."
+    },
+    "handle": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "value"
+        ],
+        "x-key-order": [
+          "service",
+          "value"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$",
+            "description": "signal, whatsapp, xmpp, matrix, …"
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^\\S+$"
+          }
+        }
+      },
+      "description": "vCard IMPP: chat and social handles, [{service, value}]."
+    },
+    "birthday": {
+      "type": "string",
+      "format": "partial-date",
+      "description": "vCard BDAY: YYYY-MM-DD, or --MM-DD when the year is not known."
+    },
+    "anniversary": {
+      "type": "string",
+      "format": "partial-date",
+      "description": "vCard ANNIVERSARY: YYYY-MM-DD or --MM-DD."
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "vCard CATEGORIES. Declare to constrain: config `groups`."
+    },
+    "accounts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "acct"
+        ],
+        "x-key-order": [
+          "acct",
+          "role",
+          "primary"
+        ],
+        "properties": {
+          "acct": {
+            "type": "string",
+            "pattern": "^acct-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "role": {
+            "type": "string",
+            "format": "slug",
+            "description": "Declare to constrain: config `contact_roles`."
+          },
+          "primary": {
+            "type": "boolean",
+            "const": "true",
+            "description": "The account's primary contact; at most one live card per account (C-08)."
+          }
+        }
+      },
+      "description": "The customer accounts this person is attached to, [{acct, role, primary}]. An account's contact list is derived from here, never stored on the account."
+    },
+    "related": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "who"
+        ],
+        "x-key-order": [
+          "rel",
+          "who"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string",
+            "enum": [
+              "contact",
+              "acquaintance",
+              "friend",
+              "met",
+              "co-worker",
+              "colleague",
+              "co-resident",
+              "neighbor",
+              "child",
+              "parent",
+              "sibling",
+              "spouse",
+              "kin",
+              "muse",
+              "crush",
+              "date",
+              "sweetheart",
+              "me",
+              "agent",
+              "emergency"
+            ],
+            "description": "vCard RELATED TYPE (RFC 6350 6.6.6)."
+          },
+          "who": {
+            "type": "string",
+            "pattern": "^CARD-[0-9]{4,}$"
+          }
+        }
+      },
+      "description": "vCard RELATED: other cards, never this one (C-09)."
+    },
+    "tz": {
+      "type": "string",
+      "format": "iana-tz",
+      "description": "vCard TZ, as an IANA name."
+    },
+    "lang": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$",
+      "description": "vCard LANG: a language tag (en, pt-BR)."
+    },
+    "photo": {
+      "type": "string",
+      "pattern": "^\\S+$",
+      "description": "vCard PHOTO: a URI, or a path relative to the project root. Image data is never stored in a card."
+    },
+    "uid": {
+      "type": "string",
+      "pattern": "^\\S+$",
+      "description": "vCard UID: stamped once (urn:uuid:…) by the tools, or kept from an imported card; the key `crm import` dedupes on."
+    },
+    "merged_into": {
+      "type": "string",
+      "pattern": "^CARD-[0-9]{4,}$",
+      "description": "Set only by `crm contact merge`, only on the archived duplicate; names the live card that absorbed it (C-10)."
+    }
+  }
+}

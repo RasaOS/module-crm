@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
-# rasa.domain.core init — minimal canonical installer for the
-# domain Element template.
+# bin/init — minimal canonical installer for a RasaOS `module` Element.
 #
 # Usage:
 #   bin/init [target-dir]
@@ -15,24 +14,39 @@
 # each entry in element.files[] and seed.files[] by its declared
 # policy.
 #
-# For domain-core specifically: element.files[] entries are all
-# policy 'opt-in' (the v1.1.0 starter layer ships but is NOT installed
-# until a fork flips a policy), so an init here installs nothing from
-# content/. seed.files[] has the two canonical templates
-# (CLAUDE.md.template + rasa.lock.json.template). So an init here
-# mainly writes the lockfile + the project CLAUDE.md.
+# For rasa.module.crm: element.files[] installs the rules, the JSON
+# Schemas, the three skills (/contact, /account, /lead) and the two
+# programs (.claude/bin/crm, .claude/bin/check-crm); seed.files[] copies
+# the project-owned seam (.claude/crm-gate.md), the crm/ ledger scaffold
+# (config, history header, contacts/, accounts/, the default stage
+# directories under leads/) and stamps the lockfile. Nothing already in the
+# project is overwritten except the Element-owned files it installed before.
+#
+# Fails loudly. A missing source, an unknown policy, or a `to` path
+# that escapes the target is an error, not a warning — a partial
+# install must never exit 0.
 
 set -euo pipefail
 
 # ---------- Paths + args ----------
 
-ELEMENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET="${1:-$(pwd)}"
-TARGET="$(cd "$TARGET" && pwd)"
+ELEMENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
-if [[ "$TARGET" == "$ELEMENT_DIR" ]]; then
-  echo "✗ Refusing to install into the Element's own folder." >&2
+TARGET_RAW="${1:-$(pwd)}"
+if [[ ! -d "$TARGET_RAW" ]]; then
+  echo "✗ Target directory does not exist: $TARGET_RAW" >&2
+  exit 1
+fi
+TARGET="$(cd "$TARGET_RAW" && pwd -P)"
+
+# Refuse to install into the Element itself, or anywhere beneath it.
+# Both paths are fully resolved (pwd -P), so a symlinked target cannot
+# slip past this guard.
+if [[ "$TARGET" == "$ELEMENT_DIR" || "$TARGET" == "$ELEMENT_DIR"/* ]]; then
+  echo "✗ Refusing to install into the Element's own folder (or a subfolder of it)." >&2
   echo "  Per ELEMENT_CONTRACT — Elements don't install into themselves." >&2
+  echo "  element: $ELEMENT_DIR" >&2
+  echo "  target:  $TARGET" >&2
   exit 1
 fi
 
@@ -45,15 +59,46 @@ if [[ ! -f "$MANIFEST" ]]; then
   exit 1
 fi
 
-# Resolve Element identity for lockfile stamping
-ELEMENT_NAME="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['name'])")"
-ELEMENT_KIND="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['kind'])")"
-ELEMENT_VERSION="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['version'])")"
-ELEMENT_REPO="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['source']['repo'])")"
-ELEMENT_BRANCH="$(python3 -c "import json; print(json.load(open('$MANIFEST'))['source']['branch'])")"
+command -v python3 >/dev/null 2>&1 || {
+  echo "✗ bin/init requires python3 on PATH." >&2; exit 1; }
 
-# Resolve current Element SHA
-ELEMENT_SHA="$(git -C "$ELEMENT_DIR" rev-parse HEAD 2>/dev/null || echo "uncommitted")"
+# Resolve Element identity in ONE pass. The manifest path is passed as
+# argv — never interpolated into a Python string literal (a quote or an
+# apostrophe in the path would be a syntax error at best, and arbitrary
+# code execution at worst).
+_meta="$(python3 - "$MANIFEST" <<'PYEOF'
+import json, sys
+m = json.load(open(sys.argv[1]))
+src = m.get('source') or {}
+for v in (m.get('name',''), m.get('kind',''), m.get('version',''),
+          src.get('repo',''), src.get('branch',''),
+          str(len((m.get('element') or {}).get('files') or [])),
+          str(len((m.get('seed') or {}).get('files') or []))):
+    print(v)
+PYEOF
+)"
+{
+  read -r ELEMENT_NAME
+  read -r ELEMENT_KIND
+  read -r ELEMENT_VERSION
+  read -r ELEMENT_REPO
+  read -r ELEMENT_BRANCH
+  read -r count_elem
+  read -r count_seed
+} <<< "$_meta"
+
+# Resolve current Element SHA.
+#
+# `rev-parse HEAD` is the wrong idiom here: in a repo with no commits it
+# prints "HEAD" on stdout AND exits non-zero, so a `|| echo uncommitted`
+# fallback appends a SECOND line and the stamped lockfile ends up with a
+# raw newline inside a JSON string — invalid JSON. Every Element freshly
+# created by `bin/new-element` (git init, no commit yet) hits that.
+# `--verify --quiet` prints nothing and exits 1 when HEAD is unresolvable.
+ELEMENT_SHA="$(git -C "$ELEMENT_DIR" rev-parse --verify --quiet HEAD 2>/dev/null || true)"
+if [[ -z "$ELEMENT_SHA" || "$ELEMENT_SHA" == *[!0-9a-f]* ]]; then
+  ELEMENT_SHA="uncommitted"
+fi
 TODAY="$(date -u +%Y-%m-%d)"
 
 echo "→ Installing $ELEMENT_NAME @ $ELEMENT_VERSION ($ELEMENT_SHA)"
@@ -62,10 +107,8 @@ echo ""
 
 # ---------- Apply element.files[] ----------
 
-count_elem="$(python3 -c "import json; print(len(json.load(open('$MANIFEST')).get('element', {}).get('files', [])))")"
-
 if [[ "$count_elem" -eq 0 ]]; then
-  echo "  element.files[] empty — domain-core v0.x ships zero content."
+  echo "  element.files[] empty — nothing Element-owned to mirror."
 else
   echo "  Applying $count_elem element.files[] entries..."
   python3 - "$MANIFEST" "$ELEMENT_DIR" "$TARGET" <<'PYEOF'
@@ -73,28 +116,63 @@ import json, os, shutil, sys
 
 manifest_path, element_dir, target = sys.argv[1], sys.argv[2], sys.argv[3]
 manifest = json.load(open(manifest_path))
+errors = []
+
+
+def resolved(dst):
+    """Absolute dst, asserted to stay inside the target tree.
+
+    os.path.join(target, '/etc/passwd') silently discards `target`, so an
+    absolute or ../-bearing `to` would write anywhere on the filesystem.
+    """
+    full = os.path.realpath(os.path.join(target, dst))
+    root = os.path.realpath(target)
+    if full != root and not full.startswith(root + os.sep):
+        return None
+    return full
+
 
 for entry in manifest.get('element', {}).get('files', []):
-    src = os.path.join(element_dir, entry['from'])
-    dst = os.path.join(target, entry['to'])
     policy = entry['policy']
     if policy == 'opt-in':
-        continue  # not installed automatically — create nothing in the target
-    # Only materialize the target directory for policies that write.
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
+        continue  # registered but not installed — create nothing in the target
+
+    src = os.path.join(element_dir, entry['from'])
+    dst = resolved(entry['to'])
+    if dst is None:
+        errors.append("'to' escapes the target tree: %s" % entry['to'])
+        continue
+    if not os.path.exists(src):
+        errors.append("declared 'from' does not exist: %s" % entry['from'])
+        continue
+
     if policy == 'directory-mirror':
-        if os.path.isdir(src):
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+        if not os.path.isdir(src):
+            errors.append("directory-mirror 'from' is not a directory: %s" % entry['from'])
+            continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        # never ship bytecode or editor cruft, whatever is on the author's disk
+        shutil.copytree(src, dst, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"))
+        print("    · mirror: %s" % entry['to'])
     elif policy == 'file-replace':
+        if not os.path.isfile(src):
+            errors.append("file-replace 'from' is not a file: %s" % entry['from'])
+            continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(src, dst)
+        print("    · replace: %s" % entry['to'])
     else:
-        print(f"  ⚠ unknown element.files[] policy: {policy} for {entry['from']}", file=sys.stderr)
+        errors.append("unknown element.files[] policy %r for %s" % (policy, entry['from']))
+
+if errors:
+    for e in errors:
+        print("  ✗ %s" % e, file=sys.stderr)
+    sys.exit(1)
 PYEOF
 fi
 
 # ---------- Apply seed.files[] ----------
-
-count_seed="$(python3 -c "import json; print(len(json.load(open('$MANIFEST')).get('seed', {}).get('files', [])))")"
 
 if [[ "$count_seed" -eq 0 ]]; then
   echo "  seed.files[] empty — no one-time files to copy."
@@ -110,6 +188,7 @@ import json, os, shutil, sys
  elem_repo, elem_branch, elem_sha, today) = sys.argv[1:11]
 
 manifest = json.load(open(manifest_path))
+errors = []
 
 subs = {
     '{{ELEMENT_NAME}}':    elem_name,
@@ -121,13 +200,31 @@ subs = {
     '{{TODAY}}':           today,
 }
 
-for entry in manifest.get('seed', {}).get('files', []):
-    src = os.path.join(element_dir, entry['from'])
-    dst = os.path.join(target, entry['to'])
-    policy = entry['policy']
 
-    if policy == 'skip-if-exists' and os.path.exists(dst):
-        print(f"    · skip (exists): {entry['to']}")
+def resolved(dst):
+    full = os.path.realpath(os.path.join(target, dst))
+    root = os.path.realpath(target)
+    if full != root and not full.startswith(root + os.sep):
+        return None
+    return full
+
+
+for entry in manifest.get('seed', {}).get('files', []):
+    policy = entry['policy']
+    src = os.path.join(element_dir, entry['from'])
+    dst = resolved(entry['to'])
+    if dst is None:
+        errors.append("'to' escapes the target tree: %s" % entry['to'])
+        continue
+    if not os.path.isfile(src):
+        errors.append("declared seed 'from' is not a file: %s" % entry['from'])
+        continue
+
+    # Both one-shot policies are non-destructive: an existing target is the
+    # project's, and the project's copy always wins. A lockfile carrying
+    # overrides[] must survive a re-init.
+    if policy in ('skip-if-exists', 'init-only-with-sha') and os.path.exists(dst):
+        print("    · skip (exists): %s" % entry['to'])
         continue
 
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -137,93 +234,36 @@ for entry in manifest.get('seed', {}).get('files', []):
             content = f.read()
         for k, v in subs.items():
             content = content.replace(k, v)
+        # A stamped .json that does not parse is a silent, load-bearing
+        # corruption (a malformed rasa.lock.json breaks every downstream
+        # reader). Catch it here rather than shipping it.
+        if entry['to'].endswith('.json'):
+            try:
+                json.loads(content)
+            except ValueError as exc:
+                errors.append("stamped %s is not valid JSON (%s)" % (entry['to'], exc))
+                continue
         with open(dst, 'w') as f:
             f.write(content)
-        print(f"    · stamp: {entry['to']}")
-    elif policy in ('skip-if-exists', 'file-replace'):
-        # skip-if-exists already handled the exists case above
+        print("    · stamp: %s" % entry['to'])
+    elif policy == 'skip-if-exists':
         shutil.copy2(src, dst)
-        print(f"    · copy: {entry['to']}")
+        print("    · copy: %s" % entry['to'])
     else:
-        print(f"    ⚠ unknown seed.files[] policy: {policy} for {entry['from']}", file=sys.stderr)
+        errors.append("unknown seed.files[] policy %r for %s" % (policy, entry['from']))
+
+if errors:
+    for e in errors:
+        print("  ✗ %s" % e, file=sys.stderr)
+    sys.exit(1)
 PYEOF
 fi
-
-# ---------- Clone the Element source into <target>/kit/<folder>/ (the /kit stash) ----------
-# A persistent, pinned reference clone of the Element's source repo. It powers
-# /sync (smart-pull upstream changes) and /promote (smart-push local changes back
-# upstream). Cloned from the local Element dir (fast, no network); origin is
-# repointed at the real upstream so /sync + /promote fetch/push GitHub.
-ELEMENT_FOLDER="$(basename "$ELEMENT_DIR")"
-KIT_DIR="$TARGET/kit/$ELEMENT_FOLDER"
-if command -v git >/dev/null 2>&1 && [[ "$ELEMENT_SHA" != "uncommitted" ]]; then
-  if [[ -d "$KIT_DIR/.git" ]]; then
-    echo "  kit: kit/$ELEMENT_FOLDER already present (left as-is)"
-  else
-    mkdir -p "$TARGET/kit"
-    if git clone --quiet "$ELEMENT_DIR" "$KIT_DIR" 2>/dev/null; then
-      git -C "$KIT_DIR" remote set-url origin "$ELEMENT_REPO" 2>/dev/null || true
-      git -C "$KIT_DIR" checkout --quiet "$ELEMENT_SHA" 2>/dev/null || true
-      echo "  kit: cloned → kit/$ELEMENT_FOLDER (origin $ELEMENT_REPO, pinned ${ELEMENT_SHA:0:12})"
-    else
-      echo "  kit: ⚠ clone failed for $ELEMENT_FOLDER — /sync + /promote will clone on first use" >&2
-    fi
-  fi
-fi
-
-# ---------- Stamp the RasaOS identity (element layer — regenerated every install) ----------
-# Canon SA-025: who this element is, rendered from rasa.identity into
-# .claude/rasa-identity.md so any session loading this project immediately knows
-# its identity. Regenerated on every install/upgrade (never goes stale). The
-# DEPLOYMENT layer is the separate, project-owned .claude/rasa-deployment.md.
-python3 - "$MANIFEST" "$TARGET" "$ELEMENT_SHA" "$TODAY" <<'PYEOF'
-import json, os, sys
-manifest_path, target, sha, today = sys.argv[1:5]
-m = json.load(open(manifest_path))
-name = m.get('name', ''); kind = m.get('kind', '')
-idn = (m.get('rasa') or {}).get('identity') or {}
-one  = idn.get('one_liner') or f"a RasaOS {kind}"
-role = idn.get('role') or kind
-subj = idn.get('subject') or ''
-goal = idn.get('goal') or ''
-cdir = os.path.join(target, '.claude'); os.makedirs(cdir, exist_ok=True)
-has_depl = os.path.exists(os.path.join(cdir, 'rasa-deployment.md'))
-depl = ("See `.claude/rasa-deployment.md` for the deployment layer (what this project is, for whom, on what platform)."
-        if has_depl else
-        "Not filled yet — describe this project in `.claude/rasa-deployment.md` (what it is, for whom, on what platform).")
-out = f"""# Who you are — RasaOS identity
-
-*(GENERATED by `bin/init` at install; regenerated on upgrade. Read this first — it is who you are.)*
-
-**RasaOS** — the operating system for agentic AI vertical platforms.
-
-You are **`{name}`** — {one}.
-
-- **Substrate:** RasaOS
-- **Element:** `{name}` — a **{role}** for **{subj}**
-- **Goal:** {goal}
-- **Pinned:** `{sha}` · stamped {today}
-
-## Deployment (the last layer)
-
-{depl}
-
----
-
-When asked **"who are you?"**, compose the answer across all three layers —
-RasaOS + this element + the deployment:
-
-> "I am a RasaOS **{role}** for **{subj}**" + the deployment layer
-> (e.g. "…, an iOS product for a company called VSI").
-
-Or run **/whoami**.
-"""
-open(os.path.join(cdir, 'rasa-identity.md'), 'w').write(out)
-print("  identity: generated .claude/rasa-identity.md")
-PYEOF
 
 echo ""
 echo "✓ $ELEMENT_NAME @ $ELEMENT_VERSION installed into $TARGET"
-echo "  Lockfile:  $TARGET/.claude/rasa.lock.json"
-echo "  Identity:  $TARGET/.claude/rasa-identity.md (+ rasa-deployment.md — fill it in)"
-echo "  Kit stash: $TARGET/kit/$ELEMENT_FOLDER (for /sync + /promote)"
+echo "  Ledger:   $TARGET/crm/               (contacts, accounts, leads — project-owned)"
+echo "  Rules:    $TARGET/.claude/crm-rules.md"
+echo "  Tools:    $TARGET/.claude/bin/crm   $TARGET/.claude/bin/check-crm"
+echo "  Seam:     $TARGET/.claude/crm-gate.md + crm/crm.config.yml"
+echo "            ← declare qualification before 'crm lead advance' can qualify a lead"
+echo "  Lockfile: $TARGET/.claude/rasa.lock.json"

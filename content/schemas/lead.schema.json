@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RasaOS/module-crm/blob/main/content/schemas/lead.schema.json",
+  "title": "Lead — rasa.module.crm (records-family/1)",
+  "description": "A sales opportunity against an account: one file under crm/leads/<stage>/, titled by its H1. The stage is the directory the file sits in; there is no stage key. Won and lost are terminal stages, never deleted.",
+  "type": "object",
+  "x-id-prefix": "LEAD",
+  "x-title": "required",
+  "x-key-order": [
+    "id",
+    "created",
+    "created_by",
+    "updated",
+    "account",
+    "contact",
+    "source",
+    "owner",
+    "value",
+    "currency",
+    "expected_close",
+    "next_action",
+    "next_action_due",
+    "closed",
+    "lost_reason",
+    "qualified_on"
+  ],
+  "x-refs": {
+    "account": [
+      "acct"
+    ],
+    "contact": [
+      "CARD"
+    ]
+  },
+  "required": [
+    "id",
+    "created",
+    "created_by",
+    "updated",
+    "account"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-[a-z0-9][a-z0-9_-]*$": {}
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^LEAD-[0-9]{4,}$",
+      "description": "Minted by `crm lead new`; never reused."
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "created_by": {
+      "type": "string",
+      "format": "actor"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "Bumped by every tool edit; `crm touch` after a hand edit."
+    },
+    "account": {
+      "type": "string",
+      "pattern": "^acct-[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "The account the opportunity is against. Required: an opportunity belongs to a customer."
+    },
+    "contact": {
+      "type": "string",
+      "pattern": "^CARD-[0-9]{4,}$",
+      "description": "The person the deal is worked with."
+    },
+    "source": {
+      "type": "string",
+      "format": "slug",
+      "description": "Where the lead came from. Declare to constrain: config `sources`."
+    },
+    "owner": {
+      "type": "string",
+      "format": "actor",
+      "description": "Who is accountable for moving it."
+    },
+    "value": {
+      "type": "string",
+      "format": "decimal",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "The estimated deal value — sizes the funnel; not booked revenue. Always with `currency` (C-14)."
+    },
+    "currency": {
+      "type": "string",
+      "format": "currency",
+      "description": "ISO 4217 code for `value`; only with a value (C-14)."
+    },
+    "expected_close": {
+      "type": "string",
+      "format": "date"
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "The single next thing that moves the lead."
+    },
+    "next_action_due": {
+      "type": "string",
+      "format": "date",
+      "description": "When the next action is due; only with a next_action."
+    },
+    "closed": {
+      "type": "string",
+      "format": "date",
+      "description": "Stamped by `crm lead win` / `crm lead lose`; present exactly in the won and lost stages (C-04)."
+    },
+    "lost_reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Why it was lost; present exactly in the lost stage (C-05)."
+    },
+    "qualified_on": {
+      "type": "string",
+      "format": "date",
+      "description": "Stamped when the lead cleared the declared qualification criteria (C-06)."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "next_action_due"
+        ]
+      },
+      "then": {
+        "required": [
+          "next_action"
+        ]
+      }
+    }
+  ]
+}

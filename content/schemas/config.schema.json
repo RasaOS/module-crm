@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RasaOS/module-crm/blob/main/content/schemas/config.schema.json",
+  "title": "crm/crm.config.yml — rasa.module.crm (records-family/1)",
+  "description": "What a project declares to rasa.module.crm. Every key except `schema` is optional and a project with no config file is valid, except that `crm lead advance` into the qualified stage refuses until `qualification` is declared. Every vocabulary list follows declare-to-constrain (absent or [] = free; non-empty = closed) — except `stages` and `account_statuses`, which have defaults and are always closed.",
+  "type": "object",
+  "x-kind": "config",
+  "x-key-order": [
+    "schema",
+    "stages",
+    "won_stage",
+    "lost_stage",
+    "qualified_stage",
+    "qualification",
+    "sources",
+    "account_statuses",
+    "active_status",
+    "tiers",
+    "tags",
+    "contact_roles",
+    "groups",
+    "labels",
+    "default_currency",
+    "actors",
+    "default_actor"
+  ],
+  "required": [
+    "schema"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "rasa.module.crm/1"
+    },
+    "stages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "minItems": 3,
+      "description": "The ordered sales stages; each is a directory under crm/leads/. NOT free when absent: the default is [new, contacted, qualified, proposal, won, lost]. Must contain won_stage, lost_stage and qualified_stage; the first stage is where new leads are filed."
+    },
+    "won_stage": {
+      "type": "string",
+      "format": "slug",
+      "description": "The terminal stage `crm lead win` moves to. Default: won."
+    },
+    "lost_stage": {
+      "type": "string",
+      "format": "slug",
+      "description": "The terminal stage `crm lead lose` moves to. Default: lost."
+    },
+    "qualified_stage": {
+      "type": "string",
+      "format": "slug",
+      "description": "The stage at which a lead counts as qualified; entering it (or any later open stage) requires the qualification criteria. Default: qualified."
+    },
+    "qualification": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "THE HARD-STOP: the criteria a lead must meet to be qualified, each asserted with `crm lead advance … --met`. `crm lead advance` into the qualified stage refuses until this is declared. What each criterion means is prose in .claude/crm-gate.md."
+    },
+    "sources": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "Where leads come from. Declare to constrain."
+    },
+    "account_statuses": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "minItems": 2,
+      "description": "The account statuses. NOT free when absent: the default is [prospect, active, churned]; the first is the status a new account starts in."
+    },
+    "active_status": {
+      "type": "string",
+      "format": "slug",
+      "description": "The status that means 'a current customer'; `crm lead win` moves the account there. Default: active."
+    },
+    "tiers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "Account tiers. Declare to constrain."
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "Account tags. Declare to constrain."
+    },
+    "contact_roles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "The roles a person plays at an account (the `role` in a card's accounts). Declare to constrain."
+    },
+    "groups": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "Address-book groups (vCard CATEGORIES). Declare to constrain."
+    },
+    "labels": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "slug"
+      },
+      "description": "The labels an email, phone, address or URL may carry (work, home, mobile, …). Declare to constrain."
+    },
+    "default_currency": {
+      "type": "string",
+      "format": "currency",
+      "description": "The currency `crm lead new --value` uses when --currency is not given."
+    },
+    "actors": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "actor"
+      }
+    },
+    "default_actor": {
+      "type": "string",
+      "format": "actor"
+    }
+  }
+}
